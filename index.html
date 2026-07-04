@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0e0e16; color: #eee; font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+    padding: 16px; user-select: none;
+  }
+  #app { width: 100%; max-width: 980px; display: flex; flex-direction: column; gap: 10px; }
+  h1 { text-align: center; font-size: 22px; letter-spacing: 1px; color: #ffce4a; text-shadow: 0 0 12px rgba(255,206,74,0.4); }
+  .hud {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #181826; border: 1px solid #2c2c40; border-radius: 10px;
+    padding: 8px 14px; font-size: 13px; flex-wrap: wrap; gap: 6px;
+  }
+  .hud .stat { display: flex; gap: 5px; align-items: center; }
+  .bonus-bar-wrap { flex: 1; min-width: 120px; margin: 0 10px; }
+  .bonus-label { font-size: 11px; color: #999; margin-bottom: 2px; }
+  .bonus-bar { height: 8px; background: #2a2a3a; border-radius: 4px; overflow: hidden; }
+  .bonus-fill { height: 100%; background: linear-gradient(90deg,#ff6a6a,#ffce4a); transition: width 0.25s; }
+  .charge-bar-wrap { flex: 1; min-width: 120px; margin: 0 10px; }
+  .charge-label { font-size: 11px; color: #999; margin-bottom: 2px; }
+  .charge-bar { height: 8px; background: #2a2a3a; border-radius: 4px; overflow: hidden; }
+  .charge-fill { height: 100%; background: linear-gradient(90deg,#4ad1ff,#9d6bff); transition: width 0.25s; }
+
+  .grid-wrap { display: flex; justify-content: center; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .grid-outer { display: flex; flex-direction: column; align-items: center; }
+  .grid-mid-row { display: flex; align-items: stretch; gap: 6px; }
+
+  .row-controls { display: flex; flex-direction: column; gap: 4px; }
+  .row-spacer { flex: 0 0 36px; }
+  .row-btn-track { flex: 1 1 auto; display: flex; flex-direction: column; gap: 4px; padding: 6px 0; min-height: 0; }
+
+  .side-actions { display: flex; flex-direction: column; gap: 8px; justify-content: flex-start; min-width: 160px; }
+  .side-actions button { width: 100%; }
+
+  #grid {
+    display: grid; gap: 4px; background: #14141f; border: 2px solid #2c2c40;
+    border-radius: 10px; padding: 6px; position: relative;
+  }
+  .cell {
+    position: relative; background: #1d1d2c; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; border: 1px solid #2c2c40;
+    transition: background 0.15s, box-shadow 0.15s; cursor: pointer;
+    aspect-ratio: 1; overflow: visible;
+  }
+  .hitbox-overlay {
+    position: absolute; inset: 0; z-index: 10; border-radius: 6px;
+    box-shadow: inset 0 0 0 3px #ff6a6a; background: rgba(58, 26, 26, 0.55);
+    pointer-events: none;
+  }
+  .anchor-dot {
+    position: absolute; top: 50%; left: 50%; width: 34%; height: 34%;
+    transform: translate(-50%, -50%); border-radius: 50%;
+    background: #ffce4a; box-shadow: 0 0 6px rgba(255,206,74,0.9), 0 0 0 2px rgba(0,0,0,0.4);
+    z-index: 12; pointer-events: none;
+  }
+  .item-destination-marker {
+    position: absolute; inset: 0; z-index: 20; border-radius: 6px;
+    box-shadow: inset 0 0 0 3px #4ad1ff, 0 0 10px 2px rgba(74,209,255,0.6);
+    background: rgba(74,209,255,0.3); pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .enemy { width: 86%; height: 86%; border-radius: 8px; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; }
+  .enemy .hp { font-size: 10px; margin-top:2px; color:#fff; text-shadow:0 1px 2px #000; }
+  .enemy.standard { background: radial-gradient(circle at 35% 30%, #ff8a8a, #b23b3b); }
+  .enemy.golem { background: radial-gradient(circle at 35% 30%, #b9b3a0, #6e6657); border-radius:6px; }
+  .enemy.slime { background: radial-gradient(circle at 35% 30%, #9dffb0, #2f9e52); border-radius: 40% 40% 50% 50%; transition: transform 0.2s ease; }
+  .enemy.slime.squashed { transform: scaleY(0.55) scaleX(1.25) !important; transform-origin: center bottom; border-radius: 50% 50% 60% 60%; }
+  .enemy.bomb { background: radial-gradient(circle at 35% 30%, #6e6eff, #1c1c50); border-radius: 50%; }
+  .enemy.bomb::after { content:'💣'; font-size:14px; position:absolute; }
+  .enemy.mage { background: radial-gradient(circle at 35% 30%, #d9a8ff, #6a2c9e); border-radius: 30% 30% 50% 50%; }
+  .enemy.mage::after { content:'🔮'; font-size:12px; position:absolute; }
+  .enemy.rolly { background: radial-gradient(circle at 35% 30%, #ffb877, #b5631f); border-radius: 45%; }
+  .enemy.siren { background: radial-gradient(circle at 35% 30%, #6ad9d4, #1c6e6a); border-radius: 30% 30% 45% 45%; }
+  .enemy.sprite { background: radial-gradient(circle at 35% 30%, #ffffff, #d8d8d8); border-radius: 50%; }
+  .enemy.vuln { outline: 2px solid #ff5a5a; }
+  .golem-link-svg { position: absolute; inset: 0; z-index: 42; pointer-events: none; }
+  .siren-link-svg { position: absolute; inset: 0; z-index: 42; pointer-events: none; }
+  .mage-link-svg { position: absolute; top: 0; left: 0; z-index: 35; pointer-events: none; }
+  .siren-curse-svg { position: absolute; top: 0; left: 0; z-index: 35; pointer-events: none; }
+  .slime-strand-svg { position: absolute; inset: 0; z-index: 42; pointer-events: none; }
+  .enemy-block {
+    position: absolute; z-index: 5; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; border-radius: 8px; pointer-events: none;
+  }
+  .enemy-block.golem { background: radial-gradient(circle at 35% 30%, #b9b3a0, #6e6657); outline: 2px solid #ffce4a; }
+  .enemy-block.rolly { background: radial-gradient(circle at 35% 30%, #ffb877, #b5631f); outline: 2px solid #ffb877; border-radius: 14px; }
+  .enemy-block.siren { background: radial-gradient(circle at 35% 30%, #6ad9d4, #1c6e6a); outline: 2px solid #2de0d6; }
+  .enemy-block.stunned, .enemy.stunned { filter: grayscale(0.6) brightness(0.75); }
+  .enemy-block.sprite { background: radial-gradient(circle at 35% 30%, #ffffff, #d8d8d8); outline: 2px solid #fff; }
+  .enemy-block.vuln { outline: 2px solid #ff5a5a; }
+  .enemy-block.critical { animation: criticalPulse 0.6s ease-in-out infinite; }
+  @keyframes criticalPulse {
+    0% { box-shadow: 0 0 0 0 rgba(255,90,90,0.7); }
+    50% { box-shadow: 0 0 14px 4px rgba(255,90,90,0.7); }
+    100% { box-shadow: 0 0 0 0 rgba(255,90,90,0.7); }
+  }
+  .enemy-block .hp { font-size: 11px; margin-top:3px; color:#fff; text-shadow:0 1px 2px #000; }
+  .enemy-block .label { font-size: 11px; color:#fff; text-shadow:0 1px 2px #000; font-weight:700; }
+  .enemy.stacked-offset-1 { transform: translate(-4px, -4px) scale(0.85); z-index: 2; }
+  .enemy.stacked-offset-2 { transform: translate(4px, 4px) scale(0.85); z-index: 1; }
+  .soul-cloud {
+    position: absolute; inset: -2px; z-index: 4; border-radius: 8px;
+    background: radial-gradient(circle, rgba(120,255,170,0.45) 0%, rgba(120,255,170,0.18) 70%, transparent 100%);
+    pointer-events: none;
+  }
+  .soul-cloud.center {
+    background: radial-gradient(circle, rgba(120,255,170,0.6) 0%, rgba(120,255,170,0.28) 70%, transparent 100%);
+  }
+
+  .row-btn, .col-btn {
+    background: #232336; border: 1px solid #34344a; color: #aab; border-radius: 6px;
+    cursor: pointer; font-size: 14px; display:flex; align-items:center; justify-content:center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .row-btn { width: 26px; flex: 1 1 0; min-height: 0; }
+  .col-btn { flex: 0 0 auto; height: 26px; }
+  .row-btn.used, .col-btn.used { color: #4ad1ff; border-color: #4ad1ff; }
+  .row-btn.disabled, .col-btn.disabled { opacity: 0.35; cursor: not-allowed; }
+  .row-btn.disabled:hover, .col-btn.disabled:hover { background: #232336; }
+  .col-controls { display: flex; gap: 4px; height: 26px; justify-content: center; padding: 0 6px; }
+  .col-controls > div { flex: 0 0 auto; }
+
+  .panel { background: #181826; border: 1px solid #2c2c40; border-radius: 10px; padding: 10px; }
+  .attack-list { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .attack-btn {
+    position: relative;
+    background: #1f1f30; border: 1px solid #34344a; border-radius: 8px;
+    padding: 8px 10px; cursor: pointer; text-align: center; min-width: 90px;
+    transition: transform 0.1s, border-color 0.15s;
+    display: flex; flex-direction: column; gap: 2px; align-items:center;
+  }
+  .attack-btn:hover { transform: translateY(-2px); border-color: #ffce4a; }
+  .attack-btn.selected { border-color: #4ad1ff; background: #1a2a36; }
+  .attack-btn.disabled { opacity: 0.35; cursor: not-allowed; }
+  .attack-btn .ic-row { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 5px; width: 100%; }
+  .attack-btn .ic { font-size: 18px; line-height: 1; }
+  .attack-btn .ct { font-size: 13px; color: #ffce4a; font-weight: 800; line-height: 1; }
+  .attack-btn .dmg-row { display: flex; flex-direction: column; gap: 1px; align-items: center; }
+  .attack-btn .dmg-base { font-size: 10px; color: #888; }
+  .attack-btn .dmg-total { font-size: 12px; color: #ff8a8a; font-weight: 700; }
+  .item-list { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .item-btn {
+    position: relative;
+    background: #1f1f30; border: 1px solid #34344a; border-radius: 8px;
+    padding: 8px 10px; cursor: pointer; text-align: center; min-width: 90px;
+    transition: transform 0.1s, border-color 0.15s;
+    display: flex; flex-direction: column; gap: 2px; align-items:center;
+  }
+  .item-btn:hover { transform: translateY(-2px); border-color: #ffce4a; }
+  .item-btn .ic-row { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 5px; width: 100%; }
+  .item-btn .ic { font-size: 18px; line-height: 1; }
+  .item-btn .ct { font-size: 13px; color: #ffce4a; font-weight: 800; line-height: 1; }
+  .item-btn.selected { border-color: #4ad1ff; background: #1a2a36; }
+  .item-btn.disabled { opacity: 0.35; cursor: not-allowed; }
+  button.action {
+    background: linear-gradient(180deg,#ffce4a,#e0a521); color: #2a1c00; border: none;
+    border-radius: 8px; padding: 10px 18px; font-weight: 700; cursor: pointer; font-size: 13px;
+  }
+  button.action:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.secondary {
+    background: #232336; color: #ccc; border: 1px solid #34344a; border-radius: 8px;
+    padding: 10px 16px; cursor: pointer; font-size: 13px;
+  }
+  button.secondary:disabled { opacity: 0.35; cursor: not-allowed; }
+  button.secondary.danger { border-color: #5a2a2a; color: #ff9a9a; }
+  button.secondary.danger:hover { background: #2a1a1a; }
+  .confirm-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    display: flex; align-items: center; justify-content: center; z-index: 70;
+  }
+  .confirm-box {
+    background: #181826; border: 1px solid #34344a; border-radius: 14px;
+    padding: 22px; width: 90%; max-width: 340px; text-align: center;
+  }
+  .confirm-box h3 { color: #ffce4a; margin-bottom: 8px; font-size: 16px; }
+  .confirm-box p { font-size: 13px; color: #ccc; margin-bottom: 16px; line-height: 1.4; }
+  .confirm-row { display: flex; gap: 10px; justify-content: center; }
+  .confirm-row button { flex: 1; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .confirm-cancel { background: #2c2c40; color: #eee; border: 1px solid #444460; }
+  .confirm-cancel:hover { background: #383852; }
+  .confirm-proceed { background: #5a2a2a; color: #ff9a9a; border: 1px solid #7a3a3a; }
+  .confirm-proceed:hover { background: #6e3434; }
+  .log { font-size: 12px; color: #999; max-height: 70px; overflow-y: auto; background:#10101a; border-radius:6px; padding:6px 10px; }
+  .log div { margin-bottom:2px; }
+  .qte-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center; z-index: 50;
+  }
+  .qte-box { background:#181826; border:1px solid #34344a; border-radius:14px; padding:24px; width:300px; text-align:center; }
+  .qte-track { position: relative; height: 26px; background:#0e0e16; border-radius:13px; margin:16px 0; overflow:hidden; border:1px solid #2c2c40; }
+  .qte-zone { position: absolute; top:0; bottom:0; background: rgba(74,209,255,0.35); border-left:2px solid #4ad1ff; border-right:2px solid #4ad1ff; }
+  .qte-marker { position: absolute; top:0; bottom:0; width:4px; background:#ffce4a; box-shadow:0 0 8px #ffce4a; }
+  .shop-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+    display:flex; align-items:center; justify-content:center; z-index:50;
+  }
+  .shop-box { background:#181826; border:1px solid #34344a; border-radius:14px; padding:22px; width:92%; max-width:480px; }
+  .shop-items { display:flex; flex-direction:column; gap:10px; margin:14px 0; }
+  .shop-item { background:#1f1f30; border:1px solid #34344a; border-radius:10px; padding:10px; display:flex; justify-content:space-between; align-items:center; gap:10px; cursor:pointer; transition: border-color 0.15s, background 0.15s; }
+  .shop-item:hover { border-color: #4a4a66; }
+  .shop-item.selected { border-color: #4ad1ff; background: #16222c; }
+  .shop-item .pick-badge { font-size: 11px; color: #4ad1ff; font-weight: 700; white-space: nowrap; }
+  .toast {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    background: #ffce4a; color: #2a1c00; padding: 8px 16px; border-radius: 8px;
+    font-weight: 700; font-size: 13px; z-index: 60; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    animation: fadeup 1.6s ease forwards;
+  }
+  @keyframes fadeup { 0%{opacity:0; transform:translateX(-50%) translateY(6px);} 15%{opacity:1; transform:translateX(-50%) translateY(0);} 80%{opacity:1;} 100%{opacity:0; transform:translateX(-50%) translateY(-6px);} }
+  .gameover-box { text-align: center; }
+  .gameover-box h2 { color:#ff6a6a; margin-bottom: 10px; }
+  .small { font-size: 11px; color: #888; }
+  .hint { font-size: 11px; color: #777; text-align:center; }
+
+  .tip-panel {
+    background: #181826; border: 1px solid #4ad1ff; border-radius: 10px;
+    padding: 10px 12px; max-width: 280px; font-size: 12px; color: #ddd;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+  }
+  .tip-panel-title { font-weight: 800; color: #ffce4a; font-size: 13px; margin-bottom: 4px; }
+  .tip-panel-desc { line-height: 1.4; margin-bottom: 6px; }
+  .tip-panel-stats { font-size: 11px; color: #9dd6ff; display: flex; flex-direction: column; gap: 2px; }
+  .tip-panel-close { text-align: right; margin-top: 6px; }
+  .tip-panel-close button {
+    background: #232336; color: #ccc; border: 1px solid #34344a; border-radius: 6px;
+    padding: 4px 10px; cursor: pointer; font-size: 11px;
+  }
+
+  @keyframes spawnGrow { 0%{transform:scale(0);opacity:0;} 60%{transform:scale(1.15);opacity:1;} 100%{transform:scale(1);opacity:1;} }
+  .spawn-grow { animation: spawnGrow 0.4s ease-out forwards; }
+  @keyframes leapHop { 0%{transform:translate(0,0) scale(1);} 40%{transform:translate(var(--leap-x), calc(var(--leap-y) - 14px)) scale(1.08);} 100%{transform:translate(var(--leap-x), var(--leap-y)) scale(1);} }
+  .leap-anim { animation: leapHop 0.4s ease-in-out forwards; z-index: 8; }
+  @keyframes teleportOut { 0%{transform:translate(0,0) scale(1);opacity:1;} 50%{transform:translate(var(--leap-x), calc(var(--leap-y) - 10px)) scale(0.5);opacity:0.3;} 100%{transform:translate(var(--leap-x), var(--leap-y)) scale(0.5);opacity:0;} }
+  .teleport-out-anim { animation: teleportOut 0.3s ease-in forwards; z-index: 8; }
+  @keyframes teleportIn { 0%{transform:scale(0.4);opacity:0;} 60%{transform:scale(1.15);opacity:1;} 100%{transform:scale(1);opacity:1;} }
+  .teleport-in-anim { animation: teleportIn 0.3s ease-out forwards; }
+  .particle-burst { position: absolute; inset: 0; pointer-events: none; z-index: 25; }
+  .particle { position: absolute; width: 6px; height: 6px; border-radius: 50%; left: 50%; top: 50%; animation: particleFly 0.5s ease-out forwards; }
+  
+  @keyframes rollyStretchGrowRow { 0%{transform:scaleX(0.05);opacity:0.5;} 100%{transform:scaleX(1);opacity:1;} }
+  @keyframes rollyStretchGrowCol { 0%{transform:scaleY(0.05);opacity:0.5;} 100%{transform:scaleY(1);opacity:1;} }
+  .rolly-stretch-grow-row { animation: rollyStretchGrowRow 0.22s ease-out forwards; }
+  .rolly-stretch-grow-col { animation: rollyStretchGrowCol 0.22s ease-out forwards; }
+
+  @keyframes rollyStretchShrinkRow { 0%{transform:scaleX(1);opacity:1;} 100%{transform:scaleX(0.05);opacity:0.3;} }
+  @keyframes rollyStretchShrinkCol { 0%{transform:scaleY(1);opacity:1;} 100%{transform:scaleY(0.05);opacity:0.3;} }
+  .rolly-stretch-shrink-row { animation: rollyStretchShrinkRow 0.18s ease-in forwards; }
+  .rolly-stretch-shrink-col { animation: rollyStretchShrinkCol 0.18s ease-in forwards; }
+  
+  @keyframes particleFly { 0%{transform:translate(-50%,-50%) translate(0,0) scale(1);opacity:1;} 100%{transform:translate(-50%,-50%) translate(var(--px), var(--py)) scale(0.2);opacity:0;} }
+  .explosion-overlay { position: absolute; z-index: 30; pointer-events: none; border-radius: 10px; }
+  .explosion-flash { position: absolute; inset: 0; border-radius: 10px; background: radial-gradient(circle, rgba(255,206,74,0.9) 0%, rgba(255,138,90,0.6) 45%, rgba(255,90,90,0) 75%); animation: explosionFlash 0.5s ease-out forwards; }
+  @keyframes explosionFlash { 0%{opacity:0;transform:scale(0.3);} 25%{opacity:1;transform:scale(1.05);} 100%{opacity:0;transform:scale(1.3);} }
+  .explosion-ring { position: absolute; inset: 0; border-radius: 10px; border: 3px solid #ffce4a; animation: explosionRing 0.45s ease-out forwards; }
+  @keyframes explosionRing { 0%{opacity:1;transform:scale(0.5);} 100%{opacity:0;transform:scale(1.15);} }
+  .floatdmg {
+    position: absolute; top: -2px; width: 0; height: 0; flex: none;
+    color: #fff; font-weight: 800; font-size: 15px;
+    text-shadow: 0 0 6px rgba(255,255,255,0.8), 0 0 12px rgba(255,206,74,0.7), 0 1px 3px #000;
+    pointer-events: none; z-index: 35; white-space: nowrap;
+    animation: floatDiag 1.1s ease-in-out forwards;
+  }
+  .floatdmg.heal {
+    color: #a8ff3d; text-shadow: 0 0 6px rgba(168,255,61,0.9), 0 0 12px rgba(168,255,61,0.6), 0 1px 3px #000;
+  }
+  @keyframes floatDiag {
+    0%   { opacity: 0;   transform: translate(-50%,-100%) translate(0,0)      scale(0.6); }
+    15%  { opacity: 1;   transform: translate(-50%,-100%) translate(2px,-4px) scale(1.25); }
+    40%  { opacity: 1;   transform: translate(-50%,-100%) translate(10px,-18px) scale(1); }
+    75%  { opacity: 1;   transform: translate(-50%,-100%) translate(20px,-34px) scale(1.1); }
+    100% { opacity: 0;   transform: translate(-50%,-100%) translate(28px,-46px) scale(0.85); }
+  }
+  .combo-indicator {
+    position: absolute; top: -8px; left: 50%; width: 0; height: 0;
+    pointer-events: none; z-index: 36; white-space: nowrap;
+    animation: comboFloat 1.3s ease-in-out forwards;
+  }
+  .combo-indicator span {
+    position: absolute; left: 0; top: 0; transform: translate(-50%,-100%);
+    background: #ffce4a; color: #1a1200; font-weight: 800; font-size: 14px;
+    padding: 3px 9px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    display: inline-block;
+  }
+  @keyframes comboFloat {
+    0%   { opacity: 0;   transform: translateY(0)   scale(0.5); }
+    15%  { opacity: 1;   transform: translateY(-4px) scale(1.3); }
+    35%  { opacity: 1;   transform: translateY(-10px) scale(1); }
+    80%  { opacity: 1;   transform: translateY(-26px) scale(1); }
+    100% { opacity: 0;   transform: translateY(-36px) scale(0.9); }
+  }
+
+  .debug-panel {
+    background: #1a1020; border: 1px solid #4a2c6a; border-radius: 10px; padding: 10px;
+    display: flex; flex-direction: column; gap: 8px; width: 160px; flex: 0 0 160px;
+  }
+  .debug-panel-title { font-size: 12px; color: #c9a8ff; font-weight: 700; }
+  .debug-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .debug-row.vertical { flex-direction: column; align-items: stretch; }
+  .debug-type-btn {
+    background: #2a1a3a; border: 1px solid #4a2c6a; color: #d9c8f0; border-radius: 6px;
+    padding: 6px 10px; cursor: pointer; font-size: 12px; text-align: center;
+  }
+  .debug-type-btn.selected { border-color: #c9a8ff; background: #3a2050; }
+  .debug-hint { font-size: 11px; color: #a896c0; word-wrap: break-word; overflow-wrap: break-word; }
+  .debug-divider { border-top: 1px solid #4a2c6a; margin: 2px 0; }
+  .debug-toggle-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #d9c8f0; gap: 6px; }
+  .debug-toggle-switch { width: 34px; height: 18px; border-radius: 9px; background: #2a1a3a; border: 1px solid #4a2c6a; position: relative; cursor: pointer; flex-shrink: 0; }
+  .debug-toggle-switch.on { background: #6a3fc4; }
+  .debug-toggle-switch::after { content: ''; position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: #d9c8f0; transition: left 0.15s; }
+  .debug-toggle-switch.on::after { left: 17px; background: #fff; }
+  .cell.debug-target { box-shadow: inset 0 0 0 3px #c9a8ff; }
+  .cell.debug-preview { box-shadow: inset 0 0 0 3px #ff8acb; background: #3a1a30; }
+  .cell.debug-move-source { box-shadow: inset 0 0 0 3px #4ad1ff; }
+  .cell.debug-delete-target { box-shadow: inset 0 0 0 3px #ff5a5a; background: rgba(255,90,90,0.18); }
+
+  .mage-cast-pulse {
+    position: absolute; z-index: 50; border-radius: 10px; pointer-events: none;
+    box-shadow: 0 0 0 0 rgba(217,168,255,0.9);
+    animation: mageCastPulse 0.85s ease-out forwards;
+  }
+  @keyframes mageCastPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(217,168,255,0.85); opacity: 1; }
+    60%  { box-shadow: 0 0 0 10px rgba(217,168,255,0); opacity: 1; }
+    100% { box-shadow: 0 0 0 14px rgba(217,168,255,0); opacity: 0; }
+  }
+  .mage-cast-bolt {
+    position: absolute; z-index: 51; pointer-events: none;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: radial-gradient(circle, #fff 0%, #d9a8ff 50%, rgba(217,168,255,0) 100%);
+    box-shadow: 0 0 8px 3px rgba(217,168,255,0.9);
+    transform: translate(-50%, -50%);
+  }
+  .mage-cast-card-flash {
+    position: absolute; z-index: 50; border-radius: 50%; pointer-events: none;
+    background: rgba(217,168,255,0.0);
+    box-shadow: inset 0 0 0 0 rgba(217,168,255,0.9);
+    animation: mageCardFlash 0.5s ease-out forwards;
+  }
+  @keyframes mageCardFlash {
+    0%   { background: rgba(217,168,255,0.45); box-shadow: inset 0 0 0 2px rgba(217,168,255,0.9); }
+    100% { background: rgba(217,168,255,0); box-shadow: inset 0 0 0 2px rgba(217,168,255,0); }
+  }
+
+  .bomb-blast-zone {
+    position: absolute; inset: 0; z-index: 3; border-radius: 6px;
+    background: rgba(110,110,255,0.13);
+    box-shadow: inset 0 0 0 1px rgba(110,110,255,0.28);
+    pointer-events: none;
+  }
+  .bomb-variant-badge {
+    position: absolute; bottom: 1px; right: 2px; z-index: 6;
+    font-size: 8px; font-weight: 800; color: #d9d9ff;
+    text-shadow: 0 1px 2px #000, 0 0 3px rgba(110,110,255,0.9);
+    pointer-events: none; line-height: 1;
+  }
+  .damage-reduction-badge {
+    position: absolute; top: 1px; left: 2px; z-index: 7;
+    font-size: 10px;
+    text-shadow: 0 0 3px rgba(208,208,208,0.95), 0 1px 2px #000;
+    pointer-events: none; line-height: 1;
+  }
+  .stun-badge {
+    position: absolute; top: 1px; right: 2px; z-index: 7;
+    font-size: 10px;
+    text-shadow: 0 0 3px rgba(255,224,102,0.95), 0 1px 2px #000;
+    pointer-events: none; line-height: 1;
+  }
+
+  .siren-thread-snap {
+    position: absolute; inset: -4px; z-index: 22; border-radius: 10px; pointer-events: none;
+    box-shadow: 0 0 0 0 rgba(45,224,214,0.95);
+    animation: sirenSnapPulse 0.5s ease-out forwards;
+  }
+  @keyframes sirenSnapPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(45,224,214,0.9); opacity: 1; }
+    100% { box-shadow: 0 0 0 16px rgba(45,224,214,0); opacity: 0; }
+  }
+  .siren-note {
+    position: absolute; z-index: 40; pointer-events: none;
+    font-size: 14px; color: #c040ff; text-shadow: 0 0 5px rgba(192,64,255,0.9), 0 1px 2px #000;
+    animation: sirenNoteLoop 1.6s ease-in-out infinite;
+  }
+  @keyframes sirenNoteLoop {
+    0%   { opacity: 0;   transform: translate(-50%,-50%) translateY(0) scale(0.6); }
+    12%  { opacity: 1;   transform: translate(-50%,-50%) translateY(-6px) scale(1.1); }
+    70%  { opacity: 1;   transform: translate(-50%,-50%) translateY(-30px) scale(1); }
+    100% { opacity: 0;   transform: translate(-50%,-50%) translateY(-38px) scale(0.95); }
+  }
+
+  .sprite-hitbox-telegraph {
+    position: absolute; inset: 0; z-index: 8; border-radius: 6px;
+    background: rgba(168,255,61,0.16);
+    box-shadow: inset 0 0 0 1px rgba(168,255,61,0.4);
+    pointer-events: none;
+  }
+  .sparkle-particle {
+    position: absolute; z-index: 41; pointer-events: none;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: #a8ff3d; box-shadow: 0 0 6px 2px rgba(168,255,61,0.9);
+    left: 50%; top: 50%;
+    animation: sparkleFly 0.7s ease-out forwards;
+  }
+  @keyframes sparkleFly {
+    0%   { opacity: 0; transform: translate(-50%,-50%) translate(0,0) scale(0.5); }
+    20%  { opacity: 1; transform: translate(-50%,-50%) translate(var(--sx), var(--sy)) scale(1.1); }
+    100% { opacity: 0; transform: translate(-50%,-50%) translate(calc(var(--sx) * 1.8), calc(var(--sy) * 1.8 - 10px)) scale(0.4); }
+  }
+  .shield-form {
+    position: absolute; z-index: 41; pointer-events: none;
+    border-radius: 10px;
+    border: 2px solid #d0d0d0;
+    box-shadow: 0 0 10px 2px rgba(208,208,208,0.7), inset 0 0 8px rgba(208,208,208,0.5);
+    opacity: 0;
+    animation: shieldFormAnim 0.7s ease-out forwards;
+  }
+  @keyframes shieldFormAnim {
+    0%   { opacity: 0; transform: scale(0.6); }
+    35%  { opacity: 1; transform: scale(1.08); }
+    70%  { opacity: 0.8; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.02); }
+  }
+
+  .enemy-transparent, .enemy.ghost, .enemy.phantom, .enemy-block.ghost, .enemy-block.phantom {
+    opacity: 0.55;
+    filter: brightness(1.3) saturate(0.7);
+    box-shadow: 0 0 10px 3px rgba(180, 200, 255, 0.35);
+  }
+  .row-btn.line-disabled, .col-btn.line-disabled {
+    background: rgba(168, 85, 247, 0.25) !important;
+    border-color: rgba(168, 85, 247, 0.7) !important;
+    cursor: not-allowed;
+  }
+  .line-disabled-badge {
+    position: absolute; font-size: 9px; pointer-events: none;
+    top: -2px; right: -2px;
+  }
+  .spore-burst {
+    position: absolute; z-index: 42; pointer-events: none;
+    left: 50%; top: 50%; transform: translate(-50%,-50%);
+    font-size: 16px; opacity: 0;
+    animation: sporeBurstAnim 0.5s ease-out forwards;
+  }
+  @keyframes sporeBurstAnim {
+    0%   { opacity: 0; transform: translate(-50%,-50%) scale(0.4); }
+    30%  { opacity: 1; transform: translate(-50%,-50%) scale(1.3); }
+    100% { opacity: 0; transform: translate(-50%,-50%) scale(1.8); }
+  }
+
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>⚔️ SLIDING SIEGE</h1>
+  <div class="hud">
+    <div class="stat">🏆 <span id="score">0</span></div>
+    <div class="bonus-bar-wrap">
+      <div class="bonus-label">Damage Bonus: <span id="bonusPct">100</span>%</div>
+      <div class="bonus-bar"><div class="bonus-fill" id="bonusFill" style="width:100%"></div></div>
+    </div>
+    <div class="charge-bar-wrap">
+      <div class="charge-label">Next Charge: <span id="chargeProgressText">0/100</span></div>
+      <div class="charge-bar"><div class="charge-fill" id="chargeFill" style="width:0%"></div></div>
+    </div>
+    <div class="stat">🗺️ Floor <span id="floor">1</span></div>
+  </div>
+  <div class="hint" id="hint">Slide rows/columns with the arrow buttons, then pick an attack and target an enemy.</div>
+  <div id="tipPanelSlot"></div>
+  <div id="gridArea"></div>
+  <div class="panel">
+    <div class="small" style="margin-bottom:6px;text-align:center;">ATTACKS (one per turn, unless granted more)</div>
+    <div class="attack-list" id="attackList"></div>
+  </div>
+  <div class="panel">
+    <div class="small" style="margin-bottom:6px;text-align:center;">ITEMS (one per turn)</div>
+    <div class="item-list" id="itemList"></div>
+  </div>
+  <div class="log" id="log"></div>
+</div>
+
+
+<!-- ====================================================
+     MODULE LOAD ORDER
+     global-state.js must always load first — every other
+     module reads/writes its variables. main.js (init/newRunState)
+     must always load LAST — it is the entry point and depends
+     on everything above it. Beyond that, files are grouped and
+     ordered so dependents load after their dependencies.
+     ==================================================== -->
+
+<script src="js/global-state.js"></script>
+
+<!-- Generic/shared rendering helpers -->
+<script src="js/shared-rendering/thread-rendering.js"></script>
+<script src="js/shared-rendering/animation-rendering.js"></script>
+
+<!-- Grid -->
+<script src="js/grid/grid-logic.js"></script>
+<script src="js/grid/grid-rendering.js"></script>
+
+<!-- Status effects (generic, then specific) -->
+<script src="js/status-effects/general-status-effect-logic.js"></script>
+<script src="js/status-effects/general-status-effect-rendering.js"></script>
+<script src="js/status-effects/stun/stun-logic.js"></script>
+<script src="js/status-effects/stun/stun-rendering.js"></script>
+<script src="js/status-effects/damage-reduction/damage-reduction-logic.js"></script>
+<script src="js/status-effects/damage-reduction/damage-reduction-rendering.js"></script>
+<script src="js/status-effects/ability-disabling/ability-disabling-logic.js"></script>
+<script src="js/status-effects/ability-disabling/ability-disabling-rendering.js"></script>
+<script src="js/status-effects/vulnerability/vulnerability-logic.js"></script>
+<script src="js/status-effects/soul-cloud/soul-cloud-logic.js"></script>
+<script src="js/status-effects/soul-cloud/soul-cloud-rendering.js"></script>
+<script src="js/status-effects/spore-cloud/spore-cloud-logic.js"></script>
+<script src="js/status-effects/spore-cloud/spore-cloud-rendering.js"></script>
+<script src="js/status-effects/row-col-disabling/row-col-disabling-logic.js"></script>
+<script src="js/status-effects/row-col-disabling/row-col-disabling-rendering.js"></script>
+
+<!-- Enemies (generic, then specific) -->
+<script src="js/enemies/general-enemy-logic.js"></script>
+<script src="js/enemies/general-enemy-rendering.js"></script>
+<script src="js/enemies/standard/standard-enemy-logic.js"></script>
+<script src="js/enemies/slime/slime-enemy-logic.js"></script>
+<script src="js/enemies/slime/slime-enemy-rendering.js"></script>
+<script src="js/enemies/bomb/bomb-enemy-logic.js"></script>
+<script src="js/enemies/bomb/bomb-enemy-rendering.js"></script>
+<script src="js/enemies/rolly/rolly-enemy-logic.js"></script>
+<script src="js/enemies/rolly/rolly-enemy-rendering.js"></script>
+<script src="js/enemies/golem/golem-enemy-logic.js"></script>
+<script src="js/enemies/golem/golem-enemy-rendering.js"></script>
+<script src="js/enemies/siren/siren-enemy-logic.js"></script>
+<script src="js/enemies/siren/siren-enemy-rendering.js"></script>
+<script src="js/enemies/mage/mage-enemy-logic.js"></script>
+<script src="js/enemies/mage/mage-enemy-rendering.js"></script>
+<script src="js/enemies/sprite/sprite-enemy-logic.js"></script>
+<script src="js/enemies/mushy/mushy-enemy-logic.js"></script>
+<script src="js/enemies/ghost/ghost-enemy-logic.js"></script>
+<script src="js/enemies/phantom/phantom-enemy-logic.js"></script>
+
+<!-- Floor spawning -->
+<script src="js/floor-spawning/floor-spawn-pool.js"></script>
+<script src="js/floor-spawning/spawn-pool-processor.js"></script>
+
+<!-- Consumables (generic, then attack/item) -->
+<script src="js/attacks/general-attack-logic.js"></script>
+<script src="js/attacks/axe/axe-attack-logic.js"></script>
+<script src="js/attacks/sword/sword-attack-logic.js"></script>
+<script src="js/attacks/hammer/hammer-attack-logic.js"></script>
+<script src="js/attacks/ring/ring-attack-logic.js"></script>
+<script src="js/attacks/crystal/crystal-attack-logic.js"></script>
+<script src="js/items/general-item-logic.js"></script>
+<script src="js/items/general-item-rendering.js"></script>
+<script src="js/items/extra-swing/extra-swing-item-logic.js"></script>
+<script src="js/items/gravity/gravity-item-logic.js"></script>
+<script src="js/items/expand-soul/expand-soul-item-logic.js"></script>
+<script src="js/items/teleport/teleport-item-logic.js"></script>
+<script src="js/items/vulnerability/vulnerability-item-logic.js"></script>
+
+<!-- Points / damage bonus / charge bar -->
+<script src="js/points-and-bonus/points-logic.js"></script>
+<script src="js/points-and-bonus/points-rendering.js"></script>
+<script src="js/points-and-bonus/damage-bonus-logic.js"></script>
+<script src="js/points-and-bonus/damage-bonus-rendering.js"></script>
+<script src="js/points-and-bonus/charge-attack-charge-bar-logic.js"></script>
+<script src="js/points-and-bonus/charge-attack-charge-bar-rendering.js"></script>
+
+<!-- Turn cycle -->
+<script src="js/turn-cycle/turn-logic.js"></script>
+<script src="js/turn-cycle/turn-rendering.js"></script>
+
+<!-- Shop -->
+<script src="js/shop/shop-logic.js"></script>
+<script src="js/shop/shop-rendering.js"></script>
+
+<!-- UI (generic, then specific) -->
+<script src="js/ui/general-ui-logic.js"></script>
+<script src="js/ui/general-ui-rendering.js"></script>
+<script src="js/ui/confirm-button-logic.js"></script>
+<script src="js/ui/cell-click-logic.js"></script>
+<script src="js/ui/qte-logic.js"></script>
+<script src="js/ui/tip-panel-rendering.js"></script>
+<script src="js/ui/attack-item-list-rendering.js"></script>
+
+<!-- Debug (one file per section) -->
+<script src="js/debug/toggles/debug-toggles-logic.js"></script>
+<script src="js/debug/toggles/debug-toggles-rendering.js"></script>
+<script src="js/debug/enemy-spawn/debug-enemy-spawn-logic.js"></script>
+<script src="js/debug/enemy-spawn/debug-enemy-spawn-rendering.js"></script>
+<script src="js/debug/move-mode/debug-move-mode-logic.js"></script>
+<script src="js/debug/move-mode/debug-move-mode-rendering.js"></script>
+<script src="js/debug/delete-mode/debug-delete-mode-logic.js"></script>
+<script src="js/debug/delete-mode/debug-delete-mode-rendering.js"></script>
+<script src="js/debug/clear-floor/debug-clear-floor-logic.js"></script>
+<script src="js/debug/clear-floor/debug-clear-floor-rendering.js"></script>
+<script src="js/debug/jump-floor/debug-jump-floor-logic.js"></script>
+<script src="js/debug/jump-floor/debug-jump-floor-rendering.js"></script>
+<script src="js/debug/debug-panel-shell-rendering.js"></script>
+
+<!-- Entry point — must load last (contains newRunState + init) -->
+<script src="js/main.js"></script>
+
+</body>
+</html>
