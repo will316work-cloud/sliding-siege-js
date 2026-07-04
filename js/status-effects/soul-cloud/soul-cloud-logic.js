@@ -32,21 +32,28 @@ function applySoulCloud(en, turns) {
 // (wrapped), matching the original inline geometry used by both
 // buildGridDOM's cloud overlay and resolveAttack's hit expansion.
 function getSoulCloudExpandedCells(en) {
-  var ar = en.anchor[0], ac = en.anchor[1];
-  var center = [];
+  var center = isRolly(en) ? rollyFootprintCells(en) : getBoundingBoxFootprintCells(en);
+  var haloSet = {};
   var halo = [];
-  var i, j;
-  for (i = 0; i < en.size[0]; i++) {
-    for (j = 0; j < en.size[1]; j++) {
-      center.push([((ar + i) % state.rows + state.rows) % state.rows, ((ac + j) % state.cols + state.cols) % state.cols]);
-    }
-  }
-  for (i = -1; i <= en.size[0]; i++) {
-    for (j = -1; j <= en.size[1]; j++) {
-      var rr = ((ar + i) % state.rows + state.rows) % state.rows;
-      var cc = ((ac + j) % state.cols + state.cols) % state.cols;
-      halo.push([rr, cc]);
-    }
-  }
+  var dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,0],[0,1],[1,-1],[1,0],[1,1]];
+  center.forEach(function(cell) {
+    dirs.forEach(function(d) {
+      var rr = ((cell[0] + d[0]) % state.rows + state.rows) % state.rows;
+      var cc = ((cell[1] + d[1]) % state.cols + state.cols) % state.cols;
+      var key = rr + ',' + cc;
+      if (!haloSet[key]) { haloSet[key] = true; halo.push([rr, cc]); }
+    });
+  });
   return { center: center, halo: halo };
+}
+
+function getBoundingBoxFootprintCells(en) {
+  var ar = en.anchor[0], ac = en.anchor[1];
+  var cells = [];
+  for (var i = 0; i < en.size[0]; i++) {
+    for (var j = 0; j < en.size[1]; j++) {
+      cells.push([((ar + i) % state.rows + state.rows) % state.rows, ((ac + j) % state.cols + state.cols) % state.cols]);
+    }
+  }
+  return cells;
 }

@@ -51,8 +51,9 @@ async function applyGravityOrb(center) {
   for (dr=-2; dr<=2; dr++) for (dc=-2; dc<=2; dc++) {
     var rr=cr+dr, cc2=cc+dc;
     if (rr<0||rr>=state.rows||cc2<0||cc2>=state.cols) continue;
-    var id = state.grid[rr][cc2];
-    if (id && affected.indexOf(id) === -1) affected.push(id);
+    state.grid[rr][cc2].forEach(function(ref) {                          // CHANGED — was a single bare id read
+      if (ref.kind === 'enemy' && affected.indexOf(ref.id) === -1) affected.push(ref.id);   // CHANGED
+    });
   }
 
   affected.sort(function(idA, idB) {
@@ -67,7 +68,7 @@ async function applyGravityOrb(center) {
     var id2 = affected[ai];
     var en = state.enemies[id2];
     if (!en) continue;
-    if (isRolly(en) && en.stretchAxis) shrinkRolly(en);
+    if (isRolly(en) && en.stretchAxis) await shrinkRolly(en);   // CHANGED — added await; shrinkRolly is async per the earlier rolly fix
     var origR = en.anchor[0], origC = en.anchor[1];
 
     var cellsFreeAt = (function(enemy, enemyId) {
@@ -76,8 +77,7 @@ async function applyGravityOrb(center) {
         for (var i=0;i<enemy.size[0];i++) for (var j=0;j<enemy.size[1];j++) {
           var rr = (nr+i) % state.rows;
           var cc3 = (nc+j) % state.cols;
-          var occ = state.grid[rr][cc3];
-          if (occ && occ !== enemyId) return false;
+          if (cellHasNonTransparentOccupant(rr, cc3) && !state.grid[rr][cc3].some(function(ref){ return ref.kind==='enemy' && ref.id===enemyId; })) return false;   // CHANGED
         }
         return true;
       };
@@ -105,8 +105,8 @@ async function applyGravityOrb(center) {
 
     animateMoveLeap(origR, origC, best[0], best[1], en.size[0] > 1, en.size[0], true);
 
-    for (var i2=0;i2<en.size[0];i2++) for (var j2=0;j2<en.size[1];j2++) state.grid[(origR+i2)%state.rows][(origC+j2)%state.cols] = null;
-    for (var i3=0;i3<en.size[0];i3++) for (var j3=0;j3<en.size[1];j3++) state.grid[(best[0]+i3)%state.rows][(best[1]+j3)%state.cols] = en.id;
+    for (var i2=0;i2<en.size[0];i2++) for (var j2=0;j2<en.size[1];j2++) removeEnemyRefAt((origR+i2)%state.rows, (origC+j2)%state.cols, en.id);   // CHANGED
+    for (var i3=0;i3<en.size[0];i3++) for (var j3=0;j3<en.size[1];j3++) addEnemyRefAt((best[0]+i3)%state.rows, (best[1]+j3)%state.cols, en.id);   // CHANGED
     en.anchor = [best[0], best[1]];
     recomputeAnchors();
 

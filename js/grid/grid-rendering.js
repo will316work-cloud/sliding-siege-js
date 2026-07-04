@@ -238,13 +238,14 @@ function buildGridDOM() {
 
         if (isHitboxCell(r,c)) {
           var overlay = document.createElement('div');
-          overlay.className = 'hitbox-overlay';   // CHANGED — removed the no-op ' anchor' suffix
+          overlay.className = 'hitbox-overlay';
           cell.appendChild(overlay);
-          if (isAnchorCell(r,c)) {                  // NEW
-            var anchorDot = document.createElement('div');
-            anchorDot.className = 'anchor-dot';
-            cell.appendChild(anchorDot);
-          }
+        }
+      
+        if (isAnchorCell(r,c)) {
+          var anchorDot = document.createElement('div');
+          anchorDot.className = 'anchor-dot';
+          cell.appendChild(anchorDot);
         }
 
         if (isItemPreviewCell(r,c)) {

@@ -146,6 +146,16 @@ function spawnEnemiesFromPool(pool, floorEntry, floorNum) {
     var slot = rollDimensionAndPosition(pool, floorEntry);
     if (!slot) continue;
     var type = pickEnemyType(pool, slot.dimension, slot.isTransparent, floorEntry);
+
+    if (!type && slot.isTransparent) {                                    // NEW — transparent attempt failed type selection
+      var retryPosition = findValidPositionsForDimension(slot.dimension); // NEW — fresh non-transparent position check
+      if (retryPosition.length > 0) {                                     // NEW
+        slot.position = retryPosition[Math.floor(Math.random()*retryPosition.length)];   // NEW
+        slot.isTransparent = false;                                       // NEW — retry counts as a regular (non-transparent) attempt
+        type = pickEnemyType(pool, slot.dimension, false, floorEntry);    // NEW — re-roll type from the regular pool
+      }
+    }
+
     if (!type) continue;
     var enemy = buildSpawnEnemy(type, floorNum);
     placeEnemyAt(slot.position[0], slot.position[1], enemy);
