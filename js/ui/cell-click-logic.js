@@ -24,10 +24,10 @@ function onCellClick(r,c) {
       if (!occupant) { hideTipPanel(); return; }
       if (occupant.kind === 'sporeCloud') {
         var cloud = state.sporeClouds[occupant.id];
-        if (cloud) showSporeCloudTipPanel(cloud); else hideTipPanel();
+        if (cloud) showSporeCloudTipPanel(cloud, r, c); else hideTipPanel();
       } else {
         var en = state.enemies[occupant.id];           // CHANGED
-        if (en) showEnemyTipPanel(en); else hideTipPanel();
+        if (en) showEnemyTipPanel(en, r, c); else hideTipPanel();
       }
     }
     return;

@@ -65,6 +65,7 @@ function drawRollyBlocks(gridEl) {
       block.style.left = pxLeft(piece.colStart) + 'px';
       block.style.width = spanPx(piece.colLen) + 'px';
       block.style.height = spanPx(piece.rowLen) + 'px';
+      block.dataset.enemyId = en.id;   // NEW — lets tip-panel-rendering.js find the clicked segment (matches drawMultiCellEnemyBlocks)
       if (en._stretchAnim) {                                                  // NEW
         if (en.stretchAxis === 'row') {
           block.style.transformOrigin = originPercentFor(ac, piece.colStart, piece.colLen, state.cols) + '% 50%';

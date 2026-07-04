@@ -30,7 +30,12 @@ function hexToRgba(hex, alpha) {
   return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
 }
 
-function showTipPanel(title, desc, statsLines) {
+// anchorPoint (optional): { x, y } in VIEWPORT coordinates. When
+// provided, the panel is absolutely positioned so its top-left corner
+// sits on that point (clamped so the whole panel stays inside the
+// viewport). When omitted, the panel renders in-flow inside
+// #tipPanelSlot exactly as before.
+function showTipPanel(title, desc, statsLines, anchorPoint) {
   var slot = document.getElementById('tipPanelSlot');
   slot.innerHTML = '';
   var panel = document.createElement('div');
@@ -60,7 +65,20 @@ function showTipPanel(title, desc, statsLines) {
   closeBtn.onclick = function() { hideTipPanel(); };
   closeRow.appendChild(closeBtn);
   panel.appendChild(closeRow);
-  slot.appendChild(panel);
+  if (anchorPoint) {
+    panel.style.position = 'absolute';
+    panel.style.zIndex = '40';
+    slot.appendChild(panel);
+    // Measure after insertion, then clamp so the panel stays fully
+    // on-screen; otherwise the top-left corner sits exactly on the anchor.
+    var margin = 4;
+    var x = Math.max(margin, Math.min(anchorPoint.x, window.innerWidth - panel.offsetWidth - margin));
+    var y = Math.max(margin, Math.min(anchorPoint.y, window.innerHeight - panel.offsetHeight - margin));
+    panel.style.left = (x + window.scrollX) + 'px';
+    panel.style.top = (y + window.scrollY) + 'px';
+  } else {
+    slot.appendChild(panel);
+  }
 }
 
 function hideTipPanel() {

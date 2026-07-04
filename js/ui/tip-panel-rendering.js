@@ -23,9 +23,60 @@
    grid-logic.js), isStunned() (see stun-logic.js),
    hasDamageReduction() (see damage-reduction-logic.js),
    isSprite()/spriteShapeLabel() (see sprite-enemy-logic.js).
+   Tooltip anchoring: every show*TipPanel below now computes an
+   anchor point (viewport coords) so showTipPanel() overlays the
+   panel with its top-left corner on the center of the clicked
+   thing. For enemies drawn as multiple wrap-around pieces
+   (multi-cell blocks / stretched rollies), the anchor is the
+   center of the specific piece containing the clicked cell —
+   found by testing which .enemy-block[data-enemy-id] rect
+   contains the clicked cell's center. Requires each rolly piece
+   to carry data-enemy-id too (see rolly-enemy-rendering.js).
    ============================================================ */
 
-function showEnemyTipPanel(en) {
+function tipAnchorForCell(r, c) {
+  if (r == null || c == null) return null;
+  var cellEl = cellElAt(r, c);
+  if (!cellEl) return null;
+  var rect = cellEl.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+function tipAnchorForEnemy(en, r, c) {
+  var cellAnchor = tipAnchorForCell(r, c);
+  if (!cellAnchor) return null;
+  var cellEl = cellElAt(r, c);
+  if (cellEl) {
+    // 1x1 inline sprite (possibly stacked-offset): center of its own sprite.
+    var sprites = cellEl.querySelectorAll('.enemy');
+    for (var i = 0; i < sprites.length; i++) {
+      if (sprites[i].dataset.enemyTextId === String(en.id)) {
+        var sRect = sprites[i].getBoundingClientRect();
+        return { x: sRect.left + sRect.width / 2, y: sRect.top + sRect.height / 2 };
+      }
+    }
+  }
+  // Multi-cell block / stretched rolly: the piece whose rect contains
+  // the clicked cell's center — so a wrapping enemy anchors on the
+  // segment that was actually clicked.
+  var blocks = document.querySelectorAll('.enemy-block[data-enemy-id="' + en.id + '"]');
+  for (var b = 0; b < blocks.length; b++) {
+    var bRect = blocks[b].getBoundingClientRect();
+    if (cellAnchor.x >= bRect.left && cellAnchor.x <= bRect.right &&
+        cellAnchor.y >= bRect.top && cellAnchor.y <= bRect.bottom) {
+      return { x: bRect.left + bRect.width / 2, y: bRect.top + bRect.height / 2 };
+    }
+  }
+  return cellAnchor;
+}
+
+function tipAnchorForElement(el) {
+  if (!el) return null;
+  var rect = el.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+function showEnemyTipPanel(en, clickedR, clickedC) {
   var label = getEnemyLabel(en.type) || en.type;
   var desc = getEnemyDescription(en.type) || '';
   var stats = ['HP: ' + Math.max(0, en.hp) + ' / ' + en.maxHp];
@@ -59,21 +110,21 @@ function showEnemyTipPanel(en) {
       : '🛡️ Damage reduced by ' + Math.round(en.damageReductionPct*100) + '% this turn';
     stats.push(reductionLabel);
   }
-  showTipPanel(label, desc, stats);
+  showTipPanel(label, desc, stats, tipAnchorForEnemy(en, clickedR, clickedC));
 }
 
 function showAttackTipPanel(key) {
   var def = ATTACK_DEFS[key];
   if (!def) return;
-  showTipPanel(def.icon + ' ' + def.name, def.desc, null);
+  showTipPanel(def.icon + ' ' + def.name, def.desc, null, tipAnchorForElement(document.getElementById('attackCard_' + key)));
 }
 
 function showItemTipPanel(key) {
   var def = ITEM_DEFS[key];
   if (!def) return;
-  showTipPanel(def.icon + ' ' + def.name, def.desc, null);
+  showTipPanel(def.icon + ' ' + def.name, def.desc, null, tipAnchorForElement(document.getElementById('itemCard_' + key)));
 }
 
-function showSporeCloudTipPanel(cloud) {
-  showTipPanel('🍄 Spore Cloud', 'Lasts ' + cloud.turnsRemaining + ' more enemy phase(s). Any attack that hits it destroys it and disables that attack for the rest of this turn and all of next turn. Bombs take priority — if a bomb is hit anywhere in the same attack, the cloud survives that hit.', []);
+function showSporeCloudTipPanel(cloud, clickedR, clickedC) {
+  showTipPanel('🍄 Spore Cloud', 'Lasts ' + cloud.turnsRemaining + ' more enemy phase(s). Any attack that hits it destroys it and disables that attack for the rest of this turn and all of next turn. Bombs take priority — if a bomb is hit anywhere in the same attack, the cloud survives that hit.', [], tipAnchorForCell(clickedR, clickedC));
 }
